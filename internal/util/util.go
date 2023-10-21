@@ -1,34 +1,32 @@
-package mapper
+package util
 
 import (
-	"fmt"
 	"reflect"
+
+	"github.com/metadiv-io/mapper/internal/types"
 )
 
-type field struct {
-	Name  string
-	Type  reflect.Type
-	Value reflect.Value
-}
-
-func neverBePtr(v any) any {
+// NeverBePtr returns the value of the pointer.
+// If the value is not a pointer, it returns the value itself.
+func NeverBePtr(v any) any {
 	if reflect.TypeOf(v).Kind() == reflect.Ptr {
 		return reflect.ValueOf(v).Elem().Interface()
 	}
 	return v
 }
 
-func parseField(v any) []field {
-	v = neverBePtr(v)
+// ParseField returns the fields of the struct.
+func ParseField(v any) []types.Field {
+	v = NeverBePtr(v)
 	t := reflect.TypeOf(v)
 	if t.Kind() != reflect.Struct {
 		panic("only struct is supported")
 	}
-	var fields []field
+	var fields []types.Field
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
 		if f.Anonymous {
-			fields = append(fields, parseField(reflect.ValueOf(v).FieldByName(f.Name).Interface())...)
+			fields = append(fields, ParseField(reflect.ValueOf(v).FieldByName(f.Name).Interface())...)
 			continue
 		}
 		if f.Type.Kind() == reflect.Ptr {
@@ -44,7 +42,7 @@ func parseField(v any) []field {
 			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 			reflect.Float32, reflect.Float64,
 			reflect.Bool:
-			fields = append(fields, field{
+			fields = append(fields, types.Field{
 				Name:  f.Name,
 				Type:  f.Type,
 				Value: reflect.ValueOf(v).Field(i),
@@ -56,17 +54,17 @@ func parseField(v any) []field {
 	return fields
 }
 
-func setField(v reflect.Value, field field) reflect.Value {
+// SetField sets the value of the field.
+func SetField(v reflect.Value, field types.Field) reflect.Value {
 	for i := 0; i < v.NumField(); i++ {
 		f := v.Type().Field(i)
 		if f.Anonymous {
-			v.Field(i).Set(setField(v.Field(i), field))
+			v.Field(i).Set(SetField(v.Field(i), field))
 			continue
 		}
 		if f.Name == field.Name {
 			_, ok := v.Type().FieldByName(field.Name)
 			if ok {
-				fmt.Println(field.Type, f.Type)
 				if field.Type == f.Type {
 					v.FieldByName(field.Name).Set(field.Value)
 				}
